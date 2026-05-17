@@ -3077,16 +3077,10 @@ do
             task.wait(0.15)
             local char = lp.Character; if not char then task.wait(1); continue end
             
-            -- Scan for abilities once at start
-            if not scannedOnce then
-                getKillerAbilities()
-                scannedOnce = true
-            end
-            
             local hrp  = char:FindFirstChild("HumanoidRootPart"); if not hrp then continue end
             local hum  = char:FindFirstChildOfClass("Humanoid"); if not hum or hum.Health <= 0 then
                 if ai_resetOnDeath then pcall(function() hum:ChangeState(Enum.HumanoidStateType.Dead) end) end
-                task.wait(3); scannedOnce = false; continue
+                task.wait(3); continue
             end
 
             local targetHRP = getNearestSurvivor()
