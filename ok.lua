@@ -2058,14 +2058,23 @@ do
             pcall(function() jd_crystalCB=getcallbackvalue(jd_NetworkRF,"OnClientInvoke") end)
         end
         jd_NetworkRF.OnClientInvoke=function(reqName,...)
-            if reqName=="GetCameraCF" and jd_enabled and jd_aimbotOn then
+            if jd_enabled and jd_aimbotOn then
                 local char=jd_lp.Character; local myHRP=char and char:FindFirstChild("HumanoidRootPart")
                 if myHRP then
                     local killer=jd_getNearestKiller(myHRP.Position)
                     local killerHRP=killer and killer:FindFirstChild("HumanoidRootPart")
                     if killerHRP then
-                        local ok,cf=pcall(jd_buildCamCF,myHRP,killerHRP,250,40)
-                        if ok and cf then return cf end
+                        -- PC: game asks for mouse world position
+                        if reqName=="GetMousePosition" then
+                            local vel=jd_getKillerVelocity(killerHRP)
+                            local predPos=killerHRP.Position+vel*jd_PREDICTION+Vector3.new(0,jd_AIM_OFFSET,0)
+                            return predPos
+                        end
+                        -- Mobile: game asks for camera CFrame
+                        if reqName=="GetCameraCF" then
+                            local ok,cf=pcall(jd_buildCamCF,myHRP,killerHRP,250,40)
+                            if ok and cf then return cf end
+                        end
                     end
                 end
             end
@@ -3563,77 +3572,6 @@ secAntiTaph:Toggle({ Title = "Remove Blindness / Effects", Type = "Checkbox", Fl
     end
 })
 
-------------------------------------------------------------------------
--- ITEM AUTO-PICKUP (TP to item → pick up → TP back)
-------------------------------------------------------------------------
-local autoPickup = {
-    on       = false,
-    thread   = nil,
-    interval = 2.0,
-}
-
-local function autoPickupFindNearest()
-    local ch  = lp.Character
-    local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
-    local best, bestDist = nil, math.huge
-    for _, obj in ipairs(svc.WS:GetDescendants()) do
-        if (obj.Name == "BloxyCola" or obj.Name == "Medkit") and not espItemHeld(obj) then
-            local part = nil
-            if obj:IsA("BasePart") then
-                part = obj
-            elseif obj:IsA("Model") then
-                part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-            end
-            if part then
-                local d = (part.Position - hrp.Position).Magnitude
-                if d < bestDist then bestDist = d; best = { obj = obj, part = part } end
-            end
-        end
-    end
-    return best
-end
-
-local function autoPickupLoop()
-    if autoPickup.thread then return end
-    autoPickup.thread = task.spawn(function()
-        while autoPickup.on do
-            task.wait(autoPickup.interval)
-            local ch  = lp.Character
-            local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local found = autoPickupFindNearest()
-                if found then
-                    local origCF = hrp.CFrame
-                    pcall(function() hrp.CFrame = CFrame.new(found.part.Position + Vector3.new(0, 3, 0)) end)
-                    task.wait(0.35)
-                    pcall(function() if hrp and hrp.Parent then hrp.CFrame = origCF end end)
-                end
-            end
-        end
-        autoPickup.thread = nil
-    end)
-end
-
-local function autoPickupStop()
-    autoPickup.on = false
-    if autoPickup.thread then task.cancel(autoPickup.thread); autoPickup.thread = nil end
-end
-
-local secAutoPickup = tabSettings:Section({ Title = "Item Auto-Pickup", Opened = true })
-
-secAutoPickup:Toggle({ Title = "TP to Medkit / BloxyCola", Desc = "TP to nearest item, pick up, return", Type = "Checkbox", Flag = "autoPickupOn", Default = autoPickup.on,
-    Callback = function(on)
-        autoPickup.on = on
-        if on then autoPickupLoop() else autoPickupStop() end
-    end
-})
-
-secAutoPickup:Slider({ Title = "Check Interval (s)", Flag = "autoPickupInterval", Step = 0.5,
-    Value = { Min = 0.5, Max = 10, Default = autoPickup.interval },
-    Callback = function(v) autoPickup.interval = v end
-})
-
 -- TAB: INTERFACE
 ------------------------------------------------------------------------
 ------------------------------------------------------------------------
@@ -3671,7 +3609,6 @@ task.spawn(function()
         if music.on        then music.thread = task.spawn(musicMonitor) end
         if chatLogEnabled  then ChatLogger.setup()  end
         if antiTaphEnabled then AntiTaph.apply()    end
-        if autoPickup.on then autoPickupLoop() end
         -- ab dot is always visible regardless of AB state
         abDotCreate()
     end)
